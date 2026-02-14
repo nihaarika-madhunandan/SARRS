@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ResQPaws Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<div class="navbar">
+    🐾 ResQPaws Rescue System
+</div>
+
+<div class="container">
+    <h1>🐾 Rescue Dashboard</h1>
+
+    <input type="text" id="searchInput" class="search-box" placeholder="🔍 Search reports...">
+
+    <div class="card">
+    {% if reports %}
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Animal</th>
+                <th>Condition</th>
+                <th>Location</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Reported At</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for report in reports %}
+            <tr>
+                <td>{{ report.id }}</td>
+                <td>{{ report.animal_type }}</td>
+                <td>{{ report.condition }}</td>
+                <td>{{ report.location }}</td>
+                <td>{{ report.description }}</td>
+                <td>
+                    {% if report.status == "Pending" %}
+                        <span class="badge badge-pending">Pending</span>
+                    {% elif report.status == "In Progress" %}
+                        <span class="badge badge-progress">In Progress</span>
+                    {% else %}
+                        <span class="badge badge-rescued">Rescued</span>
+                    {% endif %}
+                </td>
+                <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No reports yet.</p>
+    {% endif %}
+    </div>
+
+    <br>
+    <a href="/">⬅ Back to Home</a>
+</div>
+
+<script>
+document.getElementById("searchInput").addEventListener("keyup", function() {
+    let filter = this.value.toLowerCase();
+    let rows = document.querySelectorAll("table tbody tr");
+
+    rows.forEach(row => {
+        let text = row.innerText.toLowerCase();
+        row.style.display = text.includes(filter) ? "" : "none";
+    });
+});
+</script>
+
+</body>
+</html>
