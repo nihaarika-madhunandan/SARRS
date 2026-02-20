@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ResQPaws Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rescue Dashboard - ResQPaws</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -13,63 +15,161 @@
 <div class="container">
     <h1>🐾 Rescue Dashboard</h1>
 
-    <input type="text" id="searchInput" class="search-box" placeholder="🔍 Search reports...">
+    <input type="text" id="searchInput" class="search-box" placeholder="🔍 Search by animal type, condition, or location...">
 
-    <div class="card">
     {% if reports %}
-        <table>
-            <thead>
-            <tr>
-                <th>ID</th>
-                <th>Animal</th>
-                <th>Condition</th>
-                <th>Location</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Reported At</th>
-            </tr>
-            </thead>
-            <tbody>
+        <div style="margin-bottom: 15px; color: #666; font-size: 14px;">
+            📊 Total Reports: <strong>{{ reports|length }}</strong>
+        </div>
+
+        <div id="cardsView">
             {% for report in reports %}
-            <tr>
-                <td>{{ report.id }}</td>
-                <td>{{ report.animal_type }}</td>
-                <td>{{ report.condition }}</td>
-                <td>{{ report.location }}</td>
-                <td>{{ report.description }}</td>
-                <td>
-                    {% if report.status == "Pending" %}
-                        <span class="badge badge-pending">Pending</span>
-                    {% elif report.status == "In Progress" %}
-                        <span class="badge badge-progress">In Progress</span>
-                    {% else %}
-                        <span class="badge badge-rescued">Rescued</span>
+            <div class="report-card" class="searchable-item" data-searchtext="{{ report.animal_type }} {{ report.condition }} {{ report.location }}">
+                {% if report.image_path %}
+                    <img src="{{ url_for('static', filename=report.image_path) }}" alt="Animal Image">
+                {% else %}
+                    <div style="width: 120px; height: 120px; background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 40px;">
+                        {% if 'dog' in report.animal_type.lower() %}
+                            🐕
+                        {% elif 'cat' in report.animal_type.lower() %}
+                            🐱
+                        {% elif 'bird' in report.animal_type.lower() %}
+                            🦅
+                        {% elif 'rabbit' in report.animal_type.lower() %}
+                            🐰
+                        {% else %}
+                            🐾
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <div class="report-card-content">
+                    <div class="report-card-header">
+                        <div class="report-card-title">{{ report.animal_type }}</div>
+                        <div>
+                            {% if report.status == "Pending" %}
+                                <span class="badge badge-pending">⏳ Pending</span>
+                            {% elif report.status == "In Progress" %}
+                                <span class="badge badge-progress">🚀 In Progress</span>
+                            {% else %}
+                                <span class="badge badge-rescued">✅ Rescued</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="report-card-meta">
+                        <div class="report-card-meta-item">
+                            <strong>Condition:</strong> {{ report.condition }}
+                        </div>
+                        <div class="report-card-meta-item">
+                            <strong>Report ID:</strong> #{{ report.id }}
+                        </div>
+                    </div>
+
+                    {% if report.description %}
+                    <div class="report-card-description">
+                        <strong>Details:</strong> {{ report.description }}
+                    </div>
                     {% endif %}
-                </td>
-                <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-            </tr>
+
+                    <div class="report-card-location">
+                        📍 <strong>Location:</strong> {{ report.location }}
+                        {% if report.latitude and report.longitude %}
+                            <a href="https://maps.google.com/?q={{ report.latitude }},{{ report.longitude }}" target="_blank" style="margin-left: auto;">
+                                Open in Maps ↗
+                            </a>
+                        {% endif %}
+                    </div>
+
+                    <div style="color: #999; font-size: 12px;">
+                        🕐 Reported: {{ report.created_at.strftime('%B %d, %Y at %H:%M') }}
+                    </div>
+                </div>
+            </div>
             {% endfor %}
-            </tbody>
-        </table>
+        </div>
+
+        <div id="tableView" style="display: none;">
+            <div class="card">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Animal</th>
+                        <th>Condition</th>
+                        <th>Location</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Reported At</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for report in reports %}
+                    <tr class="searchable-item" data-searchtext="{{ report.animal_type }} {{ report.condition }} {{ report.location }}">
+                        <td>#{{ report.id }}</td>
+                        <td>{{ report.animal_type }}</td>
+                        <td>{{ report.condition }}</td>
+                        <td>{{ report.location }}</td>
+                        <td>{{ report.description[:50] }}{% if report.description and report.description|length > 50 %}...{% endif %}</td>
+                        <td>
+                            {% if report.status == "Pending" %}
+                                <span class="badge badge-pending">⏳ Pending</span>
+                            {% elif report.status == "In Progress" %}
+                                <span class="badge badge-progress">🚀 In Progress</span>
+                            {% else %}
+                                <span class="badge badge-rescued">✅ Rescued</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     {% else %}
-        <p>No reports yet.</p>
+        <div class="card" style="text-align: center; padding: 60px 20px;">
+            <h3 style="color: #999; font-size: 24px;">🐾 No Reports Yet</h3>
+            <p style="color: #999; margin: 15px 0;">Be the first to report an injured animal and help save a life!</p>
+            <a href="/report" class="btn">📢 Create First Report</a>
+        </div>
     {% endif %}
-    </div>
 
     <br>
     <a href="/">⬅ Back to Home</a>
 </div>
 
 <script>
-document.getElementById("searchInput").addEventListener("keyup", function() {
-    let filter = this.value.toLowerCase();
-    let rows = document.querySelectorAll("table tbody tr");
+    // SEARCH FUNCTIONALITY
+    document.getElementById("searchInput").addEventListener("keyup", function() {
+        let filter = this.value.toLowerCase();
+        let items = document.querySelectorAll(".searchable-item");
 
-    rows.forEach(row => {
-        let text = row.innerText.toLowerCase();
-        row.style.display = text.includes(filter) ? "" : "none";
+        items.forEach(item => {
+            let text = item.getAttribute("data-searchtext").toLowerCase();
+            item.style.display = text.includes(filter) ? "" : "none";
+        });
+
+        // Show "No results" message if all items are hidden
+        const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
+        if (visibleItems.length === 0 && filter.length > 0) {
+            document.querySelector(".card")?.insertAdjacentHTML(
+                "afterend",
+                '<div class="card" style="text-align: center; color: #999;"><p>No results found for "' + this.value + '"</p></div>'
+            );
+        }
     });
-});
+
+    // DYNAMIC ICON FOR ANIMAL TYPE
+    function getAnimalEmoji(animalType) {
+        const type = animalType.toLowerCase();
+        if (type.includes('dog')) return '🐕';
+        if (type.includes('cat')) return '🐱';
+        if (type.includes('bird')) return '🦅';
+        if (type.includes('rabbit')) return '🐰';
+        return '🐾';
+    }
 </script>
 
 </body>

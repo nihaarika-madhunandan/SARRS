@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Report Animal</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Injured Animal - ResQPaws</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -14,24 +16,168 @@
     <h2>🐕 Report Injured Animal</h2>
 
     <div class="card">
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data" onsubmit="validateForm(event)">
+            
+            <!-- ANIMAL TYPE -->
+            <div class="form-group">
+                <label for="animal_type">🐘 Animal Type *</label>
+                <input type="text" id="animal_type" name="animal_type" placeholder="e.g., Dog, Cat, Bird, Other" required>
+                <small style="color: #666; font-size: 12px;">Specify the type of animal</small>
+            </div>
 
-            <label>Animal Type</label><br>
-            <input type="text" name="animal_type" required><br><br>
+            <!-- CONDITION -->
+            <div class="form-group">
+                <label for="condition">⚕️ Condition *</label>
+                <input type="text" id="condition" name="condition" placeholder="e.g., Injured leg, Bleeding, Unconscious" required>
+                <small style="color: #666; font-size: 12px;">Describe the animal's current condition</small>
+            </div>
 
-            <label>Condition</label><br>
-            <input type="text" name="condition" required><br><br>
+            <!-- LOCATION - WITH LIVE LOCATION FEATURE -->
+            <div class="form-group">
+                <label for="location">📍 Location *</label>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <input type="text" id="location" name="location" placeholder="Enter address or use live location" required style="flex: 1;">
+                    <button type="button" id="getLiveLocation" class="btn" style="flex-shrink: 0; padding: 12px 20px;" onclick="getClientLocation()">
+                        <span id="locationButtonText">📍 Get Live Location</span>
+                        <span id="locationSpinner" class="spinner" style="display: none; margin-left: 5px; vertical-align: middle;"></span>
+                    </button>
+                </div>
+                <div id="locationInfo" class="location-info" style="display: none;">
+                    📍 Coordinates: <strong id="coordinates">Loading...</strong>
+                </div>
+                <input type="hidden" id="latitude" name="latitude">
+                <input type="hidden" id="longitude" name="longitude">
+                <small style="color: #666; font-size: 12px;">Click "Get Live Location" to use your device's GPS</small>
+            </div>
 
-            <label>Location</label><br>
-            <input type="text" name="location" required><br><br>
+            <!-- IMAGE UPLOAD -->
+            <div class="form-group">
+                <label for="image">📸 Upload Image</label>
+                <input type="file" id="image" name="image" accept="image/*" onchange="previewImage(event)">
+                <small style="color: #666; font-size: 12px;">Accepted formats: JPG, PNG, GIF, WebP (Max 16MB)</small>
+                <img id="imagePreview" src="" alt="Image Preview" style="display: none;">
+            </div>
 
-            <label>Description</label><br>
-            <textarea name="description"></textarea><br><br>
+            <!-- DESCRIPTION -->
+            <div class="form-group">
+                <label for="description">📝 Description</label>
+                <textarea id="description" name="description" placeholder="Provide additional details about the animal and the situation..."></textarea>
+                <small style="color: #666; font-size: 12px;">Help rescuers understand the situation better</small>
+            </div>
 
-            <button type="submit">Submit Report</button>
+            <!-- SUBMIT BUTTON -->
+            <button type="submit" id="submitBtn" style="width: 100%; padding: 14px; font-size: 16px; margin-top: 20px;">
+                ✅ Submit Report
+            </button>
         </form>
     </div>
+
+    <br>
+    <a href="/">⬅ Back to Home</a>
 </div>
+
+<script>
+    // IMAGE PREVIEW
+    function previewImage(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('imagePreview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // GET LIVE LOCATION
+    function getClientLocation() {
+        const locationBtn = document.getElementById('getLiveLocation');
+        const locationButtonText = document.getElementById('locationButtonText');
+        const locationSpinner = document.getElementById('locationSpinner');
+        const locationInput = document.getElementById('location');
+        const latitudeInput = document.getElementById('latitude');
+        const longitudeInput = document.getElementById('longitude');
+        const locationInfo = document.getElementById('locationInfo');
+        const coordinates = document.getElementById('coordinates');
+
+        if (navigator.geolocation) {
+            locationButtonText.style.display = 'none';
+            locationSpinner.style.display = 'inline-block';
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+
+                    latitudeInput.value = latitude;
+                    longitudeInput.value = longitude;
+
+                    // Reverse geocoding using OpenStreetMap Nominatim API
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const address = data.address;
+                            const fullAddress = data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                            locationInput.value = fullAddress;
+                            coordinates.innerHTML = `${latitude.toFixed(4)}, ${longitude.toFixed(4)} (Accuracy: ${accuracy.toFixed(0)}m)`;
+                            locationInfo.style.display = 'block';
+                        })
+                        .catch(error => {
+                            locationInput.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                            coordinates.innerHTML = `${latitude.toFixed(4)}, ${longitude.toFixed(4)} (Accuracy: ${accuracy.toFixed(0)}m)`;
+                            locationInfo.style.display = 'block';
+                        })
+                        .finally(function() {
+                            locationButtonText.style.display = 'inline';
+                            locationSpinner.style.display = 'none';
+                            locationBtn.disabled = false;
+                        });
+                },
+                function(error) {
+                    let errorMessage = 'Unable to get location. ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage += 'Please enable location access in your browser settings.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage += 'Location information is unavailable.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage += 'Location request timed out.';
+                            break;
+                    }
+                    alert(errorMessage);
+                    locationButtonText.style.display = 'inline';
+                    locationSpinner.style.display = 'none';
+                    locationBtn.disabled = false;
+                }
+            );
+        } else {
+            alert('Geolocation is not supported by your browser. Please enter the location manually.');
+        }
+    }
+
+    // FORM VALIDATION
+    function validateForm(event) {
+        const animalType = document.getElementById('animal_type').value.trim();
+        const condition = document.getElementById('condition').value.trim();
+        const location = document.getElementById('location').value.trim();
+
+        if (!animalType || !condition || !location) {
+            event.preventDefault();
+            alert('⚠️ Please fill in all required fields (Animal Type, Condition, Location)');
+            return false;
+        }
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
+        return true;
+    }
+</script>
 
 </body>
 </html>
