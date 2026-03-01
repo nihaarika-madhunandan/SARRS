@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Rescuers - ResQPaws</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/antd-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <header class="navbar-light">
+        <div class="container-xxl">
+            <div class="navbar-content">
+                <div class="navbar-brand"><i class="fas fa-paw"></i><span>ResQPaws</span></div>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <span style="color: #6b7280;">{{ current_user.full_name }}</span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline">Logout</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-item">
+                    <i class="fas fa-chart-bar"></i><span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('add_rescuer') }}" class="nav-item">
+                    <i class="fas fa-user-plus"></i><span>Add Rescuer</span>
+                </a>
+                <a href="{{ url_for('manage_rescuers') }}" class="nav-item active">
+                    <i class="fas fa-users"></i><span>Manage Rescuers</span>
+                </a>
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;">
+                <a href="{{ url_for('logout') }}" class="nav-item" style="color: #f5222d;">
+                    <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="container-xxl">
+                <div class="page-header">
+                    <div><h1>Manage Rescuers</h1><p>View and manage all team rescuers</p></div>
+                    <a href="{{ url_for('add_rescuer') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-user-plus"></i> Add New Rescuer
+                    </a>
+                </div>
+
+                <div class="card">
+                    {% if rescuers %}
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Experience</th>
+                                    <th>Location</th>
+                                    <th>Rating</th>
+                                    <th>Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rescuer in rescuers %}
+                                <tr>
+                                    <td><strong>{{ rescuer.full_name }}</strong></td>
+                                    <td>{{ rescuer.email }}</td>
+                                    <td>{{ rescuer.phone }}</td>
+                                    <td>{{ rescuer.experience or 'N/A' }}</td>
+                                    <td>{{ rescuer.location or 'N/A' }}</td>
+                                    <td>⭐ {{ rescuer.rating }}</td>
+                                    <td>{{ rescuer.created_at.strftime('%b %d, %Y') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <h3>No Rescuers Yet</h3>
+                        <a href="{{ url_for('add_rescuer') }}" class="btn btn-primary" style="margin-top: 20px;">Add First Rescuer</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rescuer Dashboard - ResQPaws</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<div class="navbar">
+    🐾 ResQPaws Rescue System - Rescuer Portal
+</div>
+
+<div class="container">
+    <h1>🚨 Rescuer Dashboard</h1>
+    <p style="color: #666; margin-bottom: 30px; font-size: 15px;">
+        Welcome to the Rescuer Portal! Below are animals that need immediate rescue assistance.
+    </p>
+
+    <!-- TABS FOR VIEW SWITCHING -->
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('pending')">🆘 Animals Needing Rescue</button>
+        <button class="tab-btn" onclick="switchTab('claimed')">🚀 Rescues in Progress</button>
+    </div>
+
+    <!-- ==================== PENDING ANIMALS SECTION ==================== -->
+    <div id="pending" class="tab-content active">
+        <h2 style="margin: 30px 0 20px 0; color: #ff6b6b;">🆘 Animals Awaiting Rescue</h2>
+        
+        {% if pending_reports %}
+            <div style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                📊 Total Pending: <strong style="color: #ff6b6b;">{{ pending_reports|length }}</strong>
+            </div>
+
+            <div class="rescuer-cards-grid">
+                {% for report in pending_reports %}
+                <div class="rescuer-card">
+                    <!-- IMAGE -->
+                    {% if report.image_path %}
+                        <div class="rescuer-card-image">
+                            <img src="{{ url_for('static', filename=report.image_path) }}" alt="Animal Image">
+                        </div>
+                    {% else %}
+                        <div class="rescuer-card-image-placeholder">
+                            {% if 'dog' in report.animal_type.lower() %}
+                                🐕
+                            {% elif 'cat' in report.animal_type.lower() %}
+                                🐱
+                            {% elif 'bird' in report.animal_type.lower() %}
+                                🦅
+                            {% elif 'rabbit' in report.animal_type.lower() %}
+                                🐰
+                            {% else %}
+                                🐾
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <div class="rescuer-card-content">
+                        <!-- HEADER -->
+                        <div class="rescuer-card-header">
+                            <h3 class="rescuer-card-title">{{ report.animal_type }}</h3>
+                            <span class="badge badge-emergency">🆘 URGENT</span>
+                        </div>
+
+                        <!-- DETAILS -->
+                        <div class="rescuer-card-details">
+                            <div class="detail-item">
+                                <span class="detail-label">🏥 Condition:</span>
+                                <span class="detail-value">{{ report.condition }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">📍 Location:</span>
+                                <span class="detail-value">{{ report.location }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">📅 Reported:</span>
+                                <span class="detail-value">{{ report.created_at.strftime('%m/%d/%Y %H:%M') }}</span>
+                            </div>
+                            {% if report.latitude and report.longitude %}
+                            <div class="detail-item">
+                                <span class="detail-label">🧭 Coordinates:</span>
+                                <span class="detail-value">{{ report.latitude|round(4) }}, {{ report.longitude|round(4) }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- DESCRIPTION -->
+                        {% if report.description %}
+                        <div class="rescuer-card-description">
+                            <strong>📝 Details:</strong>
+                            <p>{{ report.description }}</p>
+                        </div>
+                        {% endif %}
+
+                        <!-- ACTIONS -->
+                        <div class="rescuer-card-actions">
+                            {% if report.latitude and report.longitude %}
+                            <a href="https://maps.google.com/?q={{ report.latitude }},{{ report.longitude }}" 
+                               target="_blank" class="btn btn-outline" style="flex: 1;">
+                                📍 Open in Maps
+                            </a>
+                            {% endif %}
+                            <button class="btn" style="flex: 1;" onclick="showClaimForm({{ report.id }})">
+                                ✋ I Can Help
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CLAIM FORM (HIDDEN) -->
+                    <div id="claimForm{{ report.id }}" class="claim-form" style="display: none;">
+                        <div class="form-overlay">
+                            <div class="form-popup">
+                                <h3>👤 Rescuer Information</h3>
+                                <form method="POST" action="/rescuer/claim/{{ report.id }}">
+                                    <div class="form-group">
+                                        <label for="rescuer_name_{{ report.id }}">Your Name *</label>
+                                        <input type="text" id="rescuer_name_{{ report.id }}" name="rescuer_name" 
+                                               placeholder="Enter your full name" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="rescuer_contact_{{ report.id }}">Contact Number *</label>
+                                        <input type="text" id="rescuer_contact_{{ report.id }}" name="rescuer_contact" 
+                                               placeholder="Enter your phone number" required>
+                                    </div>
+                                    <div class="form-actions">
+                                        <button type="submit" class="btn" style="flex: 1;">✅ Claim Rescue</button>
+                                        <button type="button" class="btn btn-cancel" style="flex: 1;" 
+                                                onclick="hideClaimForm({{ report.id }})">❌ Cancel</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card" style="text-align: center; padding: 60px 20px; margin-top: 30px;">
+                <h3 style="color: #55efc4; font-size: 24px;">✅ All Animals Rescued!</h3>
+                <p style="color: #666; margin: 15px 0;">Thank you for your dedication! There are no pending rescues at the moment.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- ==================== CLAIMED ANIMALS SECTION ==================== -->
+    <div id="claimed" class="tab-content">
+        <h2 style="margin: 30px 0 20px 0; color: #4ecdc4;">🚀 Rescues in Progress</h2>
+        
+        {% if claimed_reports %}
+            <div style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                📊 Active Rescues: <strong style="color: #4ecdc4;">{{ claimed_reports|length }}</strong>
+            </div>
+
+            <div class="rescuer-cards-grid">
+                {% for report in claimed_reports %}
+                <div class="rescuer-card claimed">
+                    <!-- IMAGE -->
+                    {% if report.image_path %}
+                        <div class="rescuer-card-image">
+                            <img src="{{ url_for('static', filename=report.image_path) }}" alt="Animal Image">
+                        </div>
+                    {% else %}
+                        <div class="rescuer-card-image-placeholder">
+                            {% if 'dog' in report.animal_type.lower() %}
+                                🐕
+                            {% elif 'cat' in report.animal_type.lower() %}
+                                🐱
+                            {% elif 'bird' in report.animal_type.lower() %}
+                                🦅
+                            {% elif 'rabbit' in report.animal_type.lower() %}
+                                🐰
+                            {% else %}
+                                🐾
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <div class="rescuer-card-content">
+                        <!-- HEADER -->
+                        <div class="rescuer-card-header">
+                            <h3 class="rescuer-card-title">{{ report.animal_type }}</h3>
+                            <span class="badge badge-progress">🚀 In Progress</span>
+                        </div>
+
+                        <!-- RESCUER INFO -->
+                        <div class="rescuer-info-box">
+                            <div class="rescuer-detail">
+                                <strong>👤 Rescuer:</strong> {{ report.rescuer_name }}
+                            </div>
+                            <div class="rescuer-detail">
+                                <strong>📱 Contact:</strong> {{ report.rescuer_contact }}
+                            </div>
+                            <div class="rescuer-detail">
+                                <strong>🕐 Claimed:</strong> {{ report.claimed_at.strftime('%m/%d/%Y %H:%M') }}
+                            </div>
+                        </div>
+
+                        <!-- DETAILS -->
+                        <div class="rescuer-card-details">
+                            <div class="detail-item">
+                                <span class="detail-label">🏥 Condition:</span>
+                                <span class="detail-value">{{ report.condition }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">📍 Location:</span>
+                                <span class="detail-value">{{ report.location }}</span>
+                            </div>
+                            {% if report.latitude and report.longitude %}
+                            <div class="detail-item">
+                                <span class="detail-label">🧭 Coordinates:</span>
+                                <span class="detail-value">{{ report.latitude|round(4) }}, {{ report.longitude|round(4) }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- DESCRIPTION -->
+                        {% if report.description %}
+                        <div class="rescuer-card-description">
+                            <strong>📝 Details:</strong>
+                            <p>{{ report.description }}</p>
+                        </div>
+                        {% endif %}
+
+                        <!-- ACTIONS -->
+                        <div class="rescuer-card-actions">
+                            {% if report.latitude and report.longitude %}
+                            <a href="https://maps.google.com/?q={{ report.latitude }},{{ report.longitude }}" 
+                               target="_blank" class="btn btn-outline" style="flex: 1;">
+                                📍 Open in Maps
+                            </a>
+                            {% endif %}
+                            <form method="POST" action="/rescuer/complete/{{ report.id }}" style="flex: 1;">
+                                <button type="submit" class="btn" style="width: 100%;">
+                                    ✅ Mark as Rescued
+                                </button>
+                            </form>
+                            <form method="POST" action="/rescuer/unclaim/{{ report.id }}" style="flex: 1;">
+                                <button type="submit" class="btn btn-danger" style="width: 100%;">
+                                    ❌ Release
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card" style="text-align: center; padding: 60px 20px; margin-top: 30px;">
+                <h3 style="color: #999; font-size: 24px;">🎯 No Active Rescues</h3>
+                <p style="color: #666; margin: 15px 0;">You haven't claimed any animals yet. Go back to the Pending section to get started!</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <br>
+    <a href="/">⬅ Back to Home</a>
+</div>
+
+<script>
+    // TAB SWITCHING
+    function switchTab(tabName) {
+        const tabs = document.querySelectorAll('.tab-content');
+        const buttons = document.querySelectorAll('.tab-btn');
+        
+        tabs.forEach(tab => tab.classList.remove('active'));
+        buttons.forEach(btn => btn.classList.remove('active'));
+        
+        document.getElementById(tabName).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // SHOW CLAIM FORM
+    function showClaimForm(reportId) {
+        document.getElementById('claimForm' + reportId).style.display = 'flex';
+    }
+
+    // HIDE CLAIM FORM
+    function hideClaimForm(reportId) {
+        document.getElementById('claimForm' + reportId).style.display = 'none';
+    }
+
+    // CLOSE FORM WHEN CLICKING OUTSIDE
+    window.onclick = function(event) {
+        if (event.target.classList.contains('form-overlay')) {
+            event.target.style.display = 'none';
+        }
+    }
+</script>
+
+</body>
+</html>

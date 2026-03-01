@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard - ResQPaws</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/antd-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="navbar-light">
+        <div class="container-xxl">
+            <div class="navbar-content">
+                <div class="navbar-brand">
+                    <i class="fas fa-paw"></i>
+                    <span>ResQPaws</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <span style="color: #6b7280;">{{ current_user.full_name }}</span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline">Logout</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('user_dashboard') }}" class="nav-item active">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('user_report') }}" class="nav-item">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Report Animal</span>
+                </a>
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;">
+                <a href="{{ url_for('logout') }}" class="nav-item" style="color: #f5222d;">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container-xxl">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div>
+                        <h1>My Reports</h1>
+                        <p>Track and manage all your animal rescue reports</p>
+                    </div>
+                    <a href="{{ url_for('user_report') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus"></i> New Report
+                    </a>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-file"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Total Reports</div>
+                            <div class="stat-value">{{ stats.total_reports }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #3fb84c 100%);">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Rescued</div>
+                            <div class="stat-value">{{ stats.rescued }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%);">
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Pending</div>
+                            <div class="stat-value">{{ stats.pending }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports List -->
+                <div class="card" style="margin-top: 30px;">
+                    <h2>Recent Reports</h2>
+                    {% if reports %}
+                        <div class="reports-table">
+                            {% for report in reports %}
+                            <div class="report-row">
+                                <div class="report-col">
+                                    {% if report.image_path %}
+                                        <img src="{{ url_for('static', filename=report.image_path) }}" alt="Animal">
+                                    {% else %}
+                                        <div class="report-placeholder">
+                                            <i class="fas fa-image"></i>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="report-col-info">
+                                    <div class="report-title">{{ report.animal_type }}</div>
+                                    <div class="report-subtitle">{{ report.condition }}</div>
+                                    <div class="report-meta">
+                                        <span><i class="fas fa-map-pin"></i> {{ report.location }}</span>
+                                        <span><i class="fas fa-calendar"></i> {{ report.created_at.strftime('%b %d, %Y') }}</span>
+                                    </div>
+                                </div>
+                                <div class="report-col-status">
+                                    {% if report.is_rescued %}
+                                        <span class="badge badge-success"><i class="fas fa-check"></i> Rescued</span>
+                                    {% elif report.rescuer_id %}
+                                        <span class="badge badge-warning"><i class="fas fa-spinner fa-spin"></i> In Progress</span>
+                                    {% else %}
+                                        <span class="badge badge-primary"><i class="fas fa-hourglass-half"></i> Pending</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div style="text-align: center; padding: 60px 20px;">
+                            <i class="fas fa-inbox" style="font-size: 48px; color: #bfbfbf; margin-bottom: 20px; display: block;"></i>
+                            <h3 style="color: #8c8c8c;">No Reports Yet</h3>
+                            <p style="color: #bfbfbf; margin: 10px 0;">Start by submitting your first animal rescue report</p>
+                            <a href="{{ url_for('user_report') }}" class="btn btn-primary" style="margin-top: 20px;">Create Report</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

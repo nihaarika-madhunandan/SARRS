@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - ResQPaws</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/antd-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="navbar-light" style="background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%); box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);">
+        <div class="container-xxl">
+            <div class="navbar-content">
+                <div class="navbar-brand" style="color: white;">
+                    <i class="fas fa-chart-line"></i>
+                    <span>ResQPaws Command Center</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <span style="color: white; font-weight: 600;">📊 {{ current_user.full_name }}</span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline" style="border-color: white; color: white;">Logout</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-item active">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('add_rescuer') }}" class="nav-item">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Add Rescuer</span>
+                </a>
+                <a href="{{ url_for('manage_rescuers') }}" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Manage Rescuers</span>
+                </a>
+                <a href="{{ url_for('view_all_reports') }}" class="nav-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>All Reports</span>
+                </a>
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;">
+                <a href="{{ url_for('logout') }}" class="nav-item" style="color: #f5222d;">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container-xxl">
+                <!-- Page Header -->
+                <div class="admin-header">
+                    <div>
+                        <h1 style="color: #1e40af;">📊 COMMAND CENTER DASHBOARD</h1>
+                        <p style="color: #666; font-size: 14px; margin-top: 8px;">Real-time monitoring of all rescue operations and system performance</p>
+                    </div>
+                    <a href="{{ url_for('add_rescuer') }}" class="btn btn-primary btn-lg" style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border: none; color: white; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);">
+                        <i class="fas fa-user-plus"></i> Recruit Rescuer
+                    </a>
+                </div>
+
+                <!-- Key Statistics -->
+                <div class="stats-grid">
+                    <div class="stat-card" style="border-left: 4px solid #1e40af;">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);">
+                            <i class="fas fa-list-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">TOTAL CASES</div>
+                            <div class="stat-value">{{ stats.total_reports }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="border-left: 4px solid #22c55e;">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">RESCUED</div>
+                            <div class="stat-value">{{ stats.rescued_reports }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);">
+                            <i class="fas fa-hourglass-end"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">PENDING</div>
+                            <div class="stat-value">{{ stats.pending_reports }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);">
+                            <i class="fas fa-percent"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">SUCCESS RATE</div>
+                            <div class="stat-value">{{ "%.1f"|format(stats.rescue_rate) }}%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid-2" style="margin-top: 40px;">
+                    <!-- Rescue Status Chart -->
+                    <div class="card" style="border-left: 4px solid #1e40af; box-shadow: 0 2px 8px rgba(30, 64, 175, 0.1);">
+                        <h2 style="color: #1e40af;">📈 MISSION STATUS OVERVIEW</h2>
+                        <div class="chart-container">
+                            <canvas id="statusChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Rescuers Overview -->
+                    <div class="card" style="border-left: 4px solid #3b82f6; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);">
+                        <h2 style="color: #3b82f6;">👥 TEAM INTELLIGENCE</h2>
+                        <div style="padding: 20px 0;">
+                            <div style="display: flex; justify-content: space-around; text-align: center;">
+                                <div>
+                                    <div style="font-size: 32px; font-weight: 700; color: #1e40af;">{{ stats.total_rescuers }}</div>
+                                    <div style="color: #6b7280; font-size: 14px; margin-top: 8px;">ACTIVE AGENTS</div>
+                                </div>
+                                <div style="border-left: 2px solid #e5e7eb;"></div>
+                                <div>
+                                    <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">{{ all_reports|length }}</div>
+                                    <div style="color: #6b7280; font-size: 14px; margin-top: 8px;">ACTIVE CASES</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                            <a href="{{ url_for('manage_rescuers') }}" class="btn" style="width: 100%; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; border: none; font-weight: 700;">
+                                MANAGE TEAM
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Animal Types Statistics -->
+                <div class="card" style="margin-top: 30px; border-left: 4px solid #1e40af;">
+                    <h2 style="color: #1e40af;">🐾 SPECIES DISTRIBUTION ANALYSIS</h2>
+                    <div class="data-table">
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <thead style="background: #f3f4f6; border-bottom: 2px solid #1e40af;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; color: #1e40af; font-weight: 700;">Species</th>
+                                    <th style="padding: 12px; text-align: center; color: #1e40af; font-weight: 700;">Total Cases</th>
+                                    <th style="padding: 12px; text-align: center; color: #22c55e; font-weight: 700;">Rescued</th>
+                                    <th style="padding: 12px; text-align: center; color: #f59e0b; font-weight: 700;">Pending</th>
+                                    <th style="padding: 12px; text-align: center; color: #8b5cf6; font-weight: 700;">Success %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for animal_type, data in animal_stats.items() %}
+                                <tr style="border-bottom: 1px solid #e5e7eb; transition: background 0.3s;">
+                                    <td style="padding: 12px; font-weight: 600; color: #374151;">{{ animal_type }}</td>
+                                    <td style="padding: 12px; text-align: center; color: #6b7280;">{{ data.total }}</td>
+                                    <td style="padding: 12px; text-align: center;"><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-weight: 600;">{{ data.rescued }}</span></td>
+                                    <td style="padding: 12px; text-align: center;"><span style="background: #fef3c7; color: #7c2d12; padding: 4px 8px; border-radius: 4px; font-weight: 600;">{{ data.total - data.rescued }}</span></td>
+                                    <td style="padding: 12px; text-align: center; font-weight: 700; color: #8b5cf6;">{{ "%.1f"|format((data.rescued / data.total * 100) if data.total > 0 else 0) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Priority Distribution -->
+                <div class="card" style="margin-top: 30px; border-left: 4px solid #3b82f6;">
+                    <h2 style="color: #1e40af;">⚡ PRIORITY DISTRIBUTION MATRIX</h2>
+                    <div class="data-table">
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <thead style="background: #f3f4f6; border-bottom: 2px solid #3b82f6;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; color: #1e40af; font-weight: 700;">Priority</th>
+                                    <th style="padding: 12px; text-align: center; color: #1e40af; font-weight: 700;">Total Cases</th>
+                                    <th style="padding: 12px; text-align: center; color: #22c55e; font-weight: 700;">Rescued</th>
+                                    <th style="padding: 12px; text-align: center; color: #f59e0b; font-weight: 700;">In Progress</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for priority, data in priority_stats.items() %}
+                                <tr style="border-bottom: 1px solid #e5e7eb;">
+                                    <td style="padding: 12px; font-weight: 600; color: #374151;">
+                                        <strong>
+                                            {% if priority == 'High' %}🚨 URGENT{% elif priority == 'Medium' %}⚠️ PRIORITY{% else %}ℹ️ STANDARD{% endif %}
+                                        </strong>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center; color: #6b7280;">{{ data.total }}</td>
+                                    <td style="padding: 12px; text-align: center;"><span style="background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 4px; font-weight: 600;">{{ data.rescued }}</span></td>
+                                    <td style="padding: 12px; text-align: center;"><span style="background: #fef3c7; color: #7c2d12; padding: 6px 12px; border-radius: 4px; font-weight: 600;">{{ data.total - data.rescued }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Top Rescuers -->
+                <div class="card" style="margin-top: 30px; border-left: 4px solid #8b5cf6;">
+                    <h2 style="color: #1e40af;">👥 TOP PERFORMING RESCUE SPECIALISTS</h2>
+                    <div class="data-table">
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <thead style="background: #f3f4f6; border-bottom: 2px solid #8b5cf6;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; color: #1e40af; font-weight: 700;">Specialist Name</th>
+                                    <th style="padding: 12px; text-align: center; color: #1e40af; font-weight: 700;">Contact Email</th>
+                                    <th style="padding: 12px; text-align: center; color: #1e40af; font-weight: 700;">Phone</th>
+                                    <th style="padding: 12px; text-align: center; color: #22c55e; font-weight: 700;">Rescues Completed</th>
+                                    <th style="padding: 12px; text-align: center; color: #f59e0b; font-weight: 700;">Current Operations</th>
+                                    <th style="padding: 12px; text-align: center; color: #8b5cf6; font-weight: 700;">Performance Rating</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rescuer in rescuer_stats[:10] %}
+                                <tr style="border-bottom: 1px solid #e5e7eb; transition: background 0.3s;">
+                                    <td style="padding: 12px; font-weight: 600; color: #374151;">{{ rescuer.name }}</td>
+                                    <td style="padding: 12px; text-align: center; color: #6b7280; font-size: 0.9em;">{{ rescuer.email }}</td>
+                                    <td style="padding: 12px; text-align: center; color: #6b7280;">{{ rescuer.phone }}</td>
+                                    <td style="padding: 12px; text-align: center;"><span style="background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 4px; font-weight: 600;">{{ rescuer.animals_rescued }}</span></td>
+                                    <td style="padding: 12px; text-align: center;"><span style="background: #fef3c7; color: #7c2d12; padding: 6px 12px; border-radius: 4px; font-weight: 600;">{{ rescuer.claimed }}</span></td>
+                                    <td style="padding: 12px; text-align: center; font-weight: 700; color: #8b5cf6;">⭐ {{ rescuer.rating }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Rescue Status Chart
+        const ctx = document.getElementById('statusChart');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Rescued', 'Pending'],
+                datasets: [{
+                    data: [{{ stats.rescued_reports }}, {{ stats.pending_reports }}],
+                    backgroundColor: [
+                        'rgba(82, 196, 26, 0.8)',
+                        'rgba(250, 173, 20, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgba(82, 196, 26, 1)',
+                        'rgba(250, 173, 20, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { size: 14, weight: '600' },
+                            padding: 20
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
