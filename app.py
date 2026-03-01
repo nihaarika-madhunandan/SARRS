@@ -12,8 +12,6 @@ import json
 app = Flask(__name__)
 
 # ==================== CONFIGURATION ====================
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///resqpaws.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 app.config["SECRET_KEY"] = "your_secret_key_change_in_production"
@@ -29,14 +27,11 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 # ==================== DATABASE & AUTH SETUP ====================
 from models import db
-db.init_app(app)
+from models.user import User, Rescuer, Admin
+from models.report import Report
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-
-# Import models after db initialization
-from models.user import User, Rescuer, Admin
-from models.report import Report
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -46,16 +41,17 @@ def allowed_file(filename):
 # ==================== USER LOADERS ====================
 @login_manager.user_loader
 def load_user(user_id):
-    # Try to load from User table first
-    user = User.query.get(int(user_id))
+    """Try to load user from any collection"""
+    # Try User
+    user = User.find_by_id(user_id)
     if user:
         return user
     # Try Rescuer
-    rescuer = Rescuer.query.get(int(user_id))
+    rescuer = Rescuer.find_by_id(user_id)
     if rescuer:
         return rescuer
     # Try Admin
-    admin = Admin.query.get(int(user_id))
+    admin = Admin.find_by_id(user_id)
     return admin
 
 # ==================== DECORATORS ====================
@@ -72,7 +68,6 @@ def role_required(role):
         return decorated_function
     return decorator
 
-# ==================== SEND EMAIL ====================
 def send_email(recipient_email, subject, body):
     try:
         msg = MIMEMultipart()
@@ -91,6 +86,20 @@ def send_email(recipient_email, subject, body):
         print(f"Email error: {e}")
         return False
 
+# ==================== AUTO-DETECT ROLE ====================
+def auto_detect_role(email):
+    """Automatically detect user role based on email"""
+    # Check in admin collection first (usually admins)
+    if Admin.find_by_email(email):
+        return "admin"
+    # Check in rescuer collection
+    if Rescuer.find_by_email(email):
+        return "rescuer"
+    # Default to user
+    if User.find_by_email(email):
+        return "user"
+    return None
+
 # ==================== AUTH ROUTES ====================
 @app.route("/")
 def home():
@@ -103,58 +112,34 @@ def home():
             return redirect(url_for("admin_dashboard"))
     return render_template("landing.html")
 
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("password")
-        confirm_password = request.form.get("confirm_password")
-        full_name = request.form.get("full_name")
-        phone = request.form.get("phone")
-        
-        # Validation
-        if not email or not password or not full_name:
-            flash("All fields are required", "error")
-            return redirect(url_for("signup"))
-        
-        if password != confirm_password:
-            flash("Passwords do not match", "error")
-            return redirect(url_for("signup"))
-        
-        if User.query.filter_by(email=email).first():
-            flash("Email already registered", "error")
-            return redirect(url_for("signup"))
-        
-        # Create new user (default role: user)
-        user = User(email=email, full_name=full_name, phone=phone, role="user")
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-        
-        flash("Account created successfully! Please login.", "success")
-        return redirect(url_for("login"))
-    
-    return render_template("signup.html")
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         email = request.form.get("email")
         password = request.form.get("password")
-        role = request.form.get("role", "user")  # user, rescuer, admin
         
+        # AUTO-DETECT ROLE
+        role = auto_detect_role(email)
+        
+        if not role:
+            flash("Email not registered", "error")
+            return redirect(url_for("login"))
+        
+        # Find user by detected role
         user = None
         if role == "user":
-            user = User.query.filter_by(email=email).first()
+            user = User.find_by_email(email)
         elif role == "rescuer":
-            user = Rescuer.query.filter_by(email=email).first()
+            user = Rescuer.find_by_email(email)
         elif role == "admin":
-            user = Admin.query.filter_by(email=email).first()
+            user = Admin.find_by_email(email)
         
         if user and user.check_password(password):
             login_user(user, remember=True)
             next_page = request.args.get("next")
-            return redirect(next_page) if next_page else redirect(url_for("home"))
+            if next_page:
+                return redirect(next_page)
+            return redirect(url_for("home"))
         
         flash("Invalid email or password", "error")
     
@@ -172,7 +157,7 @@ def logout():
 @login_required
 @role_required("user")
 def user_dashboard():
-    reports = Report.query.filter_by(reporter_id=current_user.id).order_by(Report.created_at.desc()).all()
+    reports = Report.find_by_reporter(current_user._id)
     stats = {
         "total_reports": len(reports),
         "rescued": len([r for r in reports if r.is_rescued]),
@@ -213,26 +198,26 @@ def user_report():
                 file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
                 image_path = f"uploads/{filename}"
 
-        new_report = Report(
-            animal_type=animal_type,
-            condition=condition,
-            location=location,
-            description=description,
-            priority=priority,
-            latitude=latitude,
-            longitude=longitude,
-            image_path=image_path,
-            reporter_id=current_user.id,
-            reporter_name=current_user.full_name,
-            reporter_contact=current_user.phone,
-            reporter_email=current_user.email,
-        )
-
-        db.session.add(new_report)
-        db.session.commit()
-
-        flash("Report submitted successfully! Rescuers will help soon.", "success")
-        return redirect(url_for("user_dashboard"))
+        try:
+            new_report = Report.create(
+                animal_type=animal_type,
+                condition=condition,
+                location=location,
+                description=description,
+                priority=priority,
+                latitude=latitude,
+                longitude=longitude,
+                image_path=image_path,
+                reporter_id=current_user._id,
+                reporter_name=current_user.full_name,
+                reporter_contact=current_user.phone,
+                reporter_email=current_user.email,
+            )
+            flash("Report submitted successfully! Rescuers will help soon.", "success")
+            return redirect(url_for("user_dashboard"))
+        except Exception as e:
+            flash(f"Error submitting report: {str(e)}", "error")
+            return redirect(url_for("user_report"))
 
     return render_template("user/report.html")
 
@@ -246,18 +231,18 @@ def rescuer_dashboard():
     animal_filter = request.args.get("animal_type", "")
     priority_filter = request.args.get("priority", "")
     
-    # Build query
-    query = Report.query.filter(Report.is_rescued == False)
+    # Get all pending reports
+    pending_reports = Report.find_pending()
     
+    # Apply filters
     if location_filter:
-        query = query.filter(Report.location.ilike(f"%{location_filter}%"))
+        pending_reports = [r for r in pending_reports if location_filter.lower() in r.location.lower()]
     if animal_filter:
-        query = query.filter(Report.animal_type.ilike(f"%{animal_filter}%"))
+        pending_reports = [r for r in pending_reports if animal_filter.lower() in r.animal_type.lower()]
     if priority_filter:
-        query = query.filter(Report.priority == priority_filter)
+        pending_reports = [r for r in pending_reports if r.priority == priority_filter]
     
-    pending_reports = query.order_by(Report.created_at.desc()).all()
-    claimed_reports = Report.query.filter_by(rescuer_id=current_user.id).order_by(Report.claimed_at.desc()).all()
+    claimed_reports = Report.find_by_rescuer(current_user._id)
     
     stats = {
         "pending": len(pending_reports),
@@ -270,45 +255,43 @@ def rescuer_dashboard():
                          claimed_reports=claimed_reports,
                          stats=stats)
 
-@app.route("/rescuer/claim/<int:report_id>", methods=["POST"])
+@app.route("/rescuer/claim/<report_id>", methods=["POST"])
 @login_required
 @role_required("rescuer")
 def claim_rescue(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = Report.find_by_id(report_id)
+    
+    if not report:
+        flash("Report not found", "error")
+        return redirect(url_for("rescuer_dashboard"))
     
     if report.rescuer_id is not None:
         flash("This animal has already been claimed", "error")
         return redirect(url_for("rescuer_dashboard"))
     
-    report.rescuer_id = current_user.id
-    report.rescuer_name = current_user.full_name
-    report.rescuer_contact = current_user.phone
-    report.rescuer_email = current_user.email
-    report.status = "In Progress"
-    report.claimed_at = datetime.utcnow()
-    report.updated_at = datetime.utcnow()
-    
-    db.session.commit()
+    report.claim(current_user._id, current_user.full_name, current_user.phone, current_user.email)
     flash("Animal claimed successfully!", "success")
     return redirect(url_for("rescuer_dashboard"))
 
-@app.route("/rescuer/update-status/<int:report_id>", methods=["POST"])
+@app.route("/rescuer/update-status/<report_id>", methods=["POST"])
 @login_required
 @role_required("rescuer")
 def update_rescue_status(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = Report.find_by_id(report_id)
     
-    if report.rescuer_id != current_user.id:
+    if not report:
+        flash("Report not found", "error")
+        return redirect(url_for("rescuer_dashboard"))
+    
+    if report.rescuer_id != current_user._id:
         flash("You can only update your claimed animals", "error")
         return redirect(url_for("rescuer_dashboard"))
     
     is_rescued = request.form.get("is_rescued") == "true"
     
     if is_rescued and not report.is_rescued:
-        report.is_rescued = True
-        report.status = "Rescued"
-        report.completed_at = datetime.utcnow()
-        current_user.animals_rescued += 1
+        report.mark_rescued()
+        current_user.update_rescue_count()
         
         # Send email to reporter
         email_body = f"""
@@ -327,35 +310,25 @@ def update_rescue_status(report_id):
         <p>Best regards,<br>ResQPaws Team</p>
         """
         send_email(report.reporter_email, "Animal Rescued Successfully! 🎉", email_body)
-    else:
-        report.is_rescued = False
-        report.status = "In Progress"
-    
-    report.updated_at = datetime.utcnow()
-    db.session.commit()
     
     flash("Status updated successfully!", "success")
     return redirect(url_for("rescuer_dashboard"))
 
-@app.route("/rescuer/unclaim/<int:report_id>", methods=["POST"])
+@app.route("/rescuer/unclaim/<report_id>", methods=["POST"])
 @login_required
 @role_required("rescuer")
 def unclaim_rescue(report_id):
-    report = Report.query.get_or_404(report_id)
+    report = Report.find_by_id(report_id)
     
-    if report.rescuer_id != current_user.id:
+    if not report:
+        flash("Report not found", "error")
+        return redirect(url_for("rescuer_dashboard"))
+    
+    if report.rescuer_id != current_user._id:
         flash("You can only unclaim your claimed animals", "error")
         return redirect(url_for("rescuer_dashboard"))
     
-    report.rescuer_id = None
-    report.rescuer_name = None
-    report.rescuer_contact = None
-    report.rescuer_email = None
-    report.status = "Pending"
-    report.claimed_at = None
-    report.updated_at = datetime.utcnow()
-    
-    db.session.commit()
+    report.unclaim()
     flash("Animal released successfully!", "success")
     return redirect(url_for("rescuer_dashboard"))
 
@@ -364,32 +337,33 @@ def unclaim_rescue(report_id):
 @login_required
 @role_required("admin")
 def admin_dashboard():
+    all_reports = Report.find_all()
+    rescuers = Rescuer.find_all()
+    
     # Get all statistics
-    total_reports = Report.query.count()
-    rescued_reports = Report.query.filter_by(is_rescued=True).count()
-    pending_reports = Report.query.filter_by(is_rescued=False).count()
-    total_rescuers = Rescuer.query.count()
+    total_reports = len(all_reports)
+    rescued_reports = len([r for r in all_reports if r.is_rescued])
+    pending_reports = len([r for r in all_reports if not r.is_rescued])
+    total_rescuers = len(rescuers)
     
     # Get rescuers with stats
-    rescuers = Rescuer.query.all()
     rescuer_stats = []
     for rescuer in rescuers:
-        claimed_reports = Report.query.filter_by(rescuer_id=rescuer.id).count()
-        rescued = Report.query.filter_by(rescuer_id=rescuer.id, is_rescued=True).count()
+        claimed_reports = [r for r in all_reports if r.rescuer_id == rescuer._id]
+        rescued = len([r for r in claimed_reports if r.is_rescued])
         rescuer_stats.append({
-            "id": rescuer.id,
+            "id": rescuer._id,
             "name": rescuer.full_name,
             "email": rescuer.email,
             "phone": rescuer.phone,
             "animals_rescued": rescuer.animals_rescued,
-            "claimed": claimed_reports,
+            "claimed": len(claimed_reports),
             "rescued": rescued,
             "rating": rescuer.rating
         })
     
     # Get animal type statistics
     animal_stats = {}
-    all_reports = Report.query.all()
     for report in all_reports:
         animal_type = report.animal_type
         if animal_type not in animal_stats:
@@ -431,40 +405,38 @@ def add_rescuer():
         email = request.form.get("email")
         full_name = request.form.get("full_name")
         phone = request.form.get("phone")
-        password = request.form.get("password", "default_password_123")
+        experience = request.form.get("experience", "")
+        location = request.form.get("location", "")
+        password = request.form.get("password", "ResQPaws@123")
         
-        if Rescuer.query.filter_by(email=email).first():
+        if Rescuer.find_by_email(email):
             flash("Email already exists", "error")
             return redirect(url_for("add_rescuer"))
         
-        rescuer = Rescuer(
-            email=email,
-            full_name=full_name,
-            phone=phone,
-            role="rescuer"
-        )
-        rescuer.set_password(password)
-        db.session.add(rescuer)
-        db.session.commit()
-        
-        # Send email with credentials
-        email_body = f"""
-        <h2>Welcome to ResQPaws! 🐾</h2>
-        <p>Dear {full_name},</p>
-        <p>You have been added as a rescuer in the ResQPaws system.</p>
-        <p><strong>Login Credentials:</strong></p>
-        <ul>
-            <li>Email: {email}</li>
-            <li>Password: {password}</li>
-        </ul>
-        <p>Please login and update your password immediately for security.</p>
-        <p>Start helping animals in need!</p>
-        <p>Best regards,<br>ResQPaws Admin Team</p>
-        """
-        send_email(email, "Welcome to ResQPaws Rescuer Portal", email_body)
-        
-        flash("Rescuer added successfully!", "success")
-        return redirect(url_for("admin_dashboard"))
+        try:
+            rescuer = Rescuer.create(email, full_name, phone, password, experience, location)
+            
+            # Send email with credentials
+            email_body = f"""
+            <h2>Welcome to ResQPaws! 🐾</h2>
+            <p>Dear {full_name},</p>
+            <p>You have been added as a rescuer in the ResQPaws system.</p>
+            <p><strong>Login Credentials:</strong></p>
+            <ul>
+                <li>Email: {email}</li>
+                <li>Password: {password}</li>
+            </ul>
+            <p>Please login and update your password immediately for security.</p>
+            <p>Start helping animals in need!</p>
+            <p>Best regards,<br>ResQPaws Admin Team</p>
+            """
+            send_email(email, "Welcome to ResQPaws Rescuer Portal", email_body)
+            
+            flash("Rescuer added successfully!", "success")
+            return redirect(url_for("admin_dashboard"))
+        except Exception as e:
+            flash(f"Error adding rescuer: {str(e)}", "error")
+            return redirect(url_for("add_rescuer"))
     
     return render_template("admin/add_rescuer.html")
 
@@ -472,14 +444,14 @@ def add_rescuer():
 @login_required
 @role_required("admin")
 def manage_rescuers():
-    rescuers = Rescuer.query.all()
+    rescuers = Rescuer.find_all()
     return render_template("admin/manage_rescuers.html", rescuers=rescuers)
 
 @app.route("/admin/reports")
 @login_required
 @role_required("admin")
 def view_all_reports():
-    reports = Report.query.order_by(Report.created_at.desc()).all()
+    reports = Report.find_all()
     return render_template("admin/view_reports.html", reports=reports)
 
 # ==================== API ROUTES ====================
@@ -487,7 +459,7 @@ def view_all_reports():
 @login_required
 @role_required("admin")
 def get_stats():
-    all_reports = Report.query.all()
+    all_reports = Report.find_all()
     
     # Timeline data for line chart
     timeline = {}
@@ -502,10 +474,6 @@ def get_stats():
     return jsonify({
         "timeline": timeline,
     })
-
-# ==================== INITIALIZE DB ====================
-with app.app_context():
-    db.create_all()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
