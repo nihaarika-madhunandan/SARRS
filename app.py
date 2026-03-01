@@ -145,6 +145,57 @@ def login():
     
     return render_template("login.html")
 
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
+        full_name = request.form.get("full_name")
+        phone = request.form.get("phone", "")
+        
+        # Validation
+        if not email or not password or not full_name:
+            flash("Please fill in all required fields", "error")
+            return redirect(url_for("signup"))
+        
+        if password != confirm_password:
+            flash("Passwords do not match", "error")
+            return redirect(url_for("signup"))
+        
+        if len(password) < 6:
+            flash("Password must be at least 6 characters", "error")
+            return redirect(url_for("signup"))
+        
+        # Check if user already exists
+        if User.find_by_email(email):
+            flash("Email already registered as a user", "error")
+            return redirect(url_for("signup"))
+        
+        if Rescuer.find_by_email(email):
+            flash("Email already registered as a rescuer", "error")
+            return redirect(url_for("signup"))
+        
+        if Admin.find_by_email(email):
+            flash("Email already registered as an admin", "error")
+            return redirect(url_for("signup"))
+        
+        # Create new user
+        try:
+            user_id = User.create(
+                email=email,
+                password=password,
+                full_name=full_name,
+                phone=phone
+            )
+            flash("Account created successfully! Please log in.", "success")
+            return redirect(url_for("login"))
+        except Exception as e:
+            flash(f"Error creating account: {str(e)}", "error")
+            return redirect(url_for("signup"))
+    
+    return render_template("signup.html")
+
 @app.route("/logout")
 @login_required
 def logout():
