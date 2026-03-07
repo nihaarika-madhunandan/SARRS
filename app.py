@@ -163,8 +163,16 @@ def signup():
             flash("Passwords do not match", "error")
             return redirect(url_for("signup"))
         
-        if len(password) < 6:
-            flash("Password must be at least 6 characters", "error")
+        if len(password) < 8:
+            flash("Password must be at least 8 characters long", "error")
+            return redirect(url_for("signup"))
+        
+        if not any(char.isupper() for char in password):
+            flash("Password must contain at least one uppercase letter (A-Z)", "error")
+            return redirect(url_for("signup"))
+        
+        if not any(char.isdigit() for char in password):
+            flash("Password must contain at least one number (0-9)", "error")
             return redirect(url_for("signup"))
         
         # Check if user already exists
@@ -460,6 +468,19 @@ def add_rescuer():
         location = request.form.get("location", "")
         password = request.form.get("password", "ResQPaws@123")
         
+        # Enhanced password validation
+        if len(password) < 8:
+            flash("Password must be at least 8 characters", "error")
+            return redirect(url_for("add_rescuer"))
+        
+        if not any(char.isupper() for char in password):
+            flash("Password must contain at least one uppercase letter", "error")
+            return redirect(url_for("add_rescuer"))
+        
+        if not any(char.isdigit() for char in password):
+            flash("Password must contain at least one number", "error")
+            return redirect(url_for("add_rescuer"))
+        
         if Rescuer.find_by_email(email):
             flash("Email already exists", "error")
             return redirect(url_for("add_rescuer"))
@@ -483,9 +504,10 @@ def add_rescuer():
             """
             send_email(email, "Welcome to ResQPaws Rescuer Portal", email_body)
             
-            flash("Rescuer added successfully!", "success")
+            # Successfully added - show success only on admin dashboard, not in flash
             return redirect(url_for("admin_dashboard"))
         except Exception as e:
+            # Only show error messages on admin form page
             flash(f"Error adding rescuer: {str(e)}", "error")
             return redirect(url_for("add_rescuer"))
     
