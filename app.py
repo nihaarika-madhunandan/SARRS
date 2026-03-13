@@ -548,5 +548,106 @@ def get_stats():
         "timeline": timeline,
     })
 
+# ==================== DATABASE SEEDING ROUTE ====================
+@app.route("/admin/seed-database", methods=["GET", "POST"])
+def seed_database():
+    """
+    Seed database with demo data
+    Accessible only to admins or via secret key for initial setup
+    """
+    # Allow access with secret admin key or if user is admin
+    admin_key = request.args.get("key") or request.form.get("key")
+    is_authorized = False
+    
+    if current_user.is_authenticated and current_user.role == "admin":
+        is_authorized = True
+    elif admin_key == os.getenv("ADMIN_SEED_KEY", "ADMIN_SEED_KEY_NOT_SET"):
+        is_authorized = True
+    
+    if not is_authorized:
+        flash("Unauthorized: Admin access required", "error")
+        return redirect(url_for("home"))
+    
+    if request.method == "POST" or request.args.get("confirm") == "true":
+        try:
+            if db is None:
+                flash("Database connection unavailable", "error")
+                return redirect(url_for("admin_dashboard"))
+            
+            # Clear existing data
+            db.users.delete_many({})
+            db.rescuers.delete_many({})
+            db.admins.delete_many({})
+            db.reports.delete_many({})
+            
+            # Create demo users
+            users_data = [
+                {"email": "user@example.com", "full_name": "John Reporter", "phone": "+1-555-0101", "password": "password123"},
+                {"email": "sarah@example.com", "full_name": "Sarah Finder", "phone": "+1-555-0102", "password": "demo1234"},
+                {"email": "Mike.chen@example.com", "full_name": "Mike Chen", "phone": "+1-555-0103", "password": "secure123"},
+                {"email": "emma.watson@example.com", "full_name": "Emma Watson", "phone": "+1-555-0104", "password": "emma1234"}
+            ]
+            
+            created_users = []
+            for user_data in users_data:
+                user = User.create(user_data["email"], user_data["full_name"], user_data["phone"], user_data["password"])
+                created_users.append(user)
+            
+            # Create demo rescuers
+            rescuers_data = [
+                {"email": "alex.rescuer@example.com", "full_name": "Alex Rescuer", "phone": "+1-555-0201", "password": "rescuer123", "experience": "5 years - Bird specialist", "location": "Downtown"},
+                {"email": "james.wildlife@example.com", "full_name": "James Wilson", "phone": "+1-555-0202", "password": "james1234", "experience": "8 years - Large animals", "location": "Northern area"},
+                {"email": "lisa.rescue@example.com", "full_name": "Lisa Johnson", "phone": "+1-555-0203", "password": "lisa5678", "experience": "6 years - Urban wildlife", "location": "City center"},
+                {"email": "david.rescuer@example.com", "full_name": "David Kumar", "phone": "+1-555-0204", "password": "david123", "experience": "10 years - All species", "location": "Metro area"},
+                {"email": "sophia.wildlife@example.com", "full_name": "Sophia Martinez", "phone": "+1-555-0205", "password": "sophia99", "experience": "3 years - Small animals", "location": "Community area"}
+            ]
+            
+            created_rescuers = []
+            for rescuer_data in rescuers_data:
+                rescuer = Rescuer.create(rescuer_data["email"], rescuer_data["full_name"], rescuer_data["phone"], rescuer_data["password"], rescuer_data["experience"], rescuer_data["location"])
+                created_rescuers.append(rescuer)
+            
+            # Create demo admins
+            Admin.create("admin@sarrs.com", "Admin Dashboard", "admin1234")
+            Admin.create("manager@sarrs.com", "System Manager", "manager123")
+            
+            # Create demo reports
+            reports_data = [
+                {"animal_type": "Bird", "condition": "Injured Wing", "location": "Downtown Park", "description": "Eagle with broken wing", "priority": "High", "reporter_idx": 0, "lat": 40.7128, "lon": -74.0060},
+                {"animal_type": "Dog", "condition": "Lost/Stray", "location": "Main Street", "description": "Golden Retriever, friendly", "priority": "Medium", "reporter_idx": 1, "lat": 40.7150, "lon": -74.0070},
+                {"animal_type": "Cat", "condition": "Stuck/Trapped", "location": "Oak Avenue", "description": "Cat stuck in tree", "priority": "Medium", "reporter_idx": 2, "lat": 40.7200, "lon": -74.0100},
+                {"animal_type": "Deer", "condition": "Hit by Vehicle", "location": "Highway 5", "description": "Injured deer on roadside", "priority": "Critical", "reporter_idx": 0, "lat": 40.6800, "lon": -74.0200},
+                {"animal_type": "Raccoon", "condition": "Disease Suspected", "location": "Neighborhood", "description": "Disoriented raccoon", "priority": "High", "reporter_idx": 3, "lat": 40.7300, "lon": -74.0150},
+                {"animal_type": "Swan", "condition": "Caught in Debris", "location": "Riverside Lake", "description": "Swan tangled in net", "priority": "High", "reporter_idx": 1, "lat": 40.6900, "lon": -74.0180},
+                {"animal_type": "Fox", "condition": "Suspected Injury", "location": "Forest Edge", "description": "Fox with limping gait", "priority": "Medium", "reporter_idx": 2, "lat": 40.6750, "lon": -74.0250},
+                {"animal_type": "Rabbit", "condition": "Orphaned", "location": "Garden", "description": "Young rabbit without mother", "priority": "Low", "reporter_idx": 3, "lat": 40.7100, "lon": -74.0210}
+            ]
+            
+            for report_data in reports_data:
+                reporter = created_users[report_data["reporter_idx"]]
+                Report.create(
+                    animal_type=report_data["animal_type"],
+                    condition=report_data["condition"],
+                    location=report_data["location"],
+                    description=report_data["description"],
+                    priority=report_data["priority"],
+                    reporter_id=reporter._id,
+                    reporter_name=reporter.full_name,
+                    reporter_contact=reporter.phone,
+                    reporter_email=reporter.email,
+                    latitude=report_data.get("lat"),
+                    longitude=report_data.get("lon")
+                )
+            
+            flash(f"Database seeded successfully! Created {len(created_users)} users, {len(created_rescuers)} rescuers, 2 admins, and 8 reports", "success")
+            return redirect(url_for("admin_dashboard"))
+            
+        except Exception as e:
+            flash(f"Error seeding database: {str(e)}", "error")
+            return redirect(url_for("admin_dashboard"))
+    
+    # Show confirmation page
+    return render_template("admin/seed_database.html")
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
