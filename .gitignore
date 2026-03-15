@@ -45,3 +45,9 @@ Thumbs.db
 
 # Instance
 instance/
+
+# Environment Variables (NEVER commit .env files with secrets)
+.env
+.env.local
+.env.*.local
+.env.prod
